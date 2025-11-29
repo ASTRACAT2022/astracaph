@@ -5,24 +5,23 @@ import Link from "next/link"
 import { Shield, Zap, Lock, BarChart3, ArrowRight, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AstraCaptchaWidget } from "@/components/captcha/astra-captcha-widget"
-import { useRouter } from "next/navigation"
 
 export default function HomePage() {
-  const [session, setSession] = useState(null)
-  const router = useRouter()
+  const [stats, setStats] = useState(null)
 
   useEffect(() => {
-    const sessionData = localStorage.getItem("astra-session")
-    if (sessionData) {
-      setSession(JSON.parse(sessionData))
+    const fetchStats = async () => {
+      try {
+        const response = await fetch("/api/statistics")
+        const data = await response.json()
+        setStats(data)
+      } catch (error) {
+        console.error("Failed to fetch stats:", error)
+      }
     }
-  }, [])
 
-  const handleLogout = () => {
-    localStorage.removeItem("astra-session")
-    setSession(null)
-    router.push("/")
-  }
+    fetchStats()
+  }, [])
 
   return (
     <div className="min-h-screen bg-black">
@@ -40,29 +39,11 @@ export default function HomePage() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              {session ? (
-                <>
-                  <Link href="/admin">
-                    <Button variant="ghost" className="text-zinc-300 hover:text-white">
-                      Dashboard
-                    </Button>
-                  </Link>
-                  <Button variant="ghost" onClick={handleLogout} className="text-zinc-300 hover:text-white">
-                    Logout
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Link href="/login">
-                    <Button variant="ghost" className="text-zinc-300 hover:text-white">
-                      Sign In
-                    </Button>
-                  </Link>
-                  <Link href="/register">
-                    <Button className="bg-cyan-500 hover:bg-cyan-600 text-white">Get Started</Button>
-                  </Link>
-                </>
-              )}
+              <Link href="/documentation">
+                <Button variant="ghost" className="text-zinc-300 hover:text-white">
+                  Documentation
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -87,13 +68,10 @@ export default function HomePage() {
                 Everything runs in your infrastructure.
               </p>
               <div className="flex gap-4">
-                <Button className="bg-cyan-500 hover:bg-cyan-600 text-white">
-                  View Documentation
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-                <Link href="/admin">
-                  <Button variant="outline" className="border-zinc-700 text-white hover:bg-zinc-900 bg-transparent">
-                    Try Demo
+                <Link href="/documentation">
+                  <Button className="bg-cyan-500 hover:bg-cyan-600 text-white">
+                    View Documentation
+                    <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </Link>
               </div>
@@ -173,6 +151,36 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Stats Section */}
+      {stats && (
+        <section className="py-20 px-6 border-t border-zinc-800">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-white mb-4">Live Statistics</h2>
+              <p className="text-zinc-400">Real-time data from our CAPTCHA system</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-lg">
+                <h3 className="text-xl font-semibold text-white mb-2">Total Verifications</h3>
+                <p className="text-3xl font-bold text-cyan-400">{stats.totalVerifications}</p>
+              </div>
+              <div className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-lg">
+                <h3 className="text-xl font-semibold text-white mb-2">Successful</h3>
+                <p className="text-3xl font-bold text-green-400">{stats.successfulVerifications}</p>
+              </div>
+              <div className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-lg">
+                <h3 className="text-xl font-semibold text-white mb-2">Failed</h3>
+                <p className="text-3xl font-bold text-red-400">{stats.failedVerifications}</p>
+              </div>
+              <div className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-lg">
+                <h3 className="text-xl font-semibold text-white mb-2">Bot Attempts</h3>
+                <p className="text-3xl font-bold text-yellow-400">{stats.botAttempts}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-zinc-800 py-8 px-6 mt-20">

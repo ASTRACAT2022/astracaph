@@ -14,10 +14,11 @@ function WidgetContent() {
   }
 
   const handleVerify = (token: string, success: boolean) => {
+    const targetOrigin = process.env.NEXT_PUBLIC_APP_URL || document.referrer || '*'
     window.parent.postMessage({
       type: 'astracaph-verified',
       detail: { token, success }
-    }, '*')
+    }, targetOrigin)
   }
 
   return (
