@@ -2,22 +2,10 @@
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
-import { CheckCircle2, XCircle, Shield, Activity, Globe, Users, Key, Copy, Check } from "lucide-react"
+import { CheckCircle2, XCircle, Shield, Activity, Globe, Users, Key, Plus, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useRouter } from "next/navigation"
-
-interface Session {
-  user: {
-    id: string
-    email: string
-  }
-  siteKey: {
-    publicKey: string
-    domain: string
-  }
-  token: string
-}
+import DashboardSkeleton from "@/components/admin/dashboard-skeleton" // Import DashboardSkeleton
 
 interface Statistics {
   totalVerifications: number
@@ -36,31 +24,35 @@ interface Statistics {
   }>
 }
 
+interface SiteKey {
+  publicKey: string
+  secretKey: string
+  domain: string
+  enabled: boolean
+  createdAt: number
+}
+
 export function DashboardContent() {
-  const [session, setSession] = useState<Session | null>(null)
   const [stats, setStats] = useState<Statistics | null>(null)
+  const [siteKeys, setSiteKeys] = useState<SiteKey[]>([])
   const [loading, setLoading] = useState(true)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
-  const [copiedHtml, setCopiedHtml] = useState(false)
-  const router = useRouter()
+
+  useEffect(() => {
+    loadData()
+    const interval = setInterval(loadData, 5000) // Refresh every 5 seconds
+    return () => clearInterval(interval)
+  }, [])
 
   const loadData = async () => {
-    const sessionData = localStorage.getItem("astra-session")
-    if (!sessionData) {
-      router.push("/login")
-      return
-    }
-    const currentSession = JSON.parse(sessionData)
-    setSession(currentSession)
-
     try {
-      const statsRes = await fetch(`/api/admin/site-keys/${currentSession.siteKey.publicKey}/stats`, {
-        headers: {
-          Authorization: `Bearer ${currentSession.token}`,
-        },
-      })
+      const [statsRes, keysRes] = await Promise.all([fetch("/api/admin/stats"), fetch("/api/admin/site-keys")])
+
       const statsData = await statsRes.json()
+      const keysData = await keysRes.json()
+
       setStats(statsData)
+      setSiteKeys(keysData.siteKeys || [])
     } catch (error) {
       console.error("[v0] Failed to load data:", error)
     } finally {
@@ -68,11 +60,24 @@ export function DashboardContent() {
     }
   }
 
-  useEffect(() => {
-    loadData()
-    const interval = setInterval(loadData, 5000)
-    return () => clearInterval(interval)
-  }, [])
+  const createSiteKey = async () => {
+    const domain = prompt("Enter domain (e.g., example.com or * for all):")
+    if (!domain) return
+
+    try {
+      const res = await fetch("/api/admin/site-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      })
+
+      if (res.ok) {
+        await loadData()
+      }
+    } catch (error) {
+      console.error("[v0] Failed to create site key:", error)
+    }
+  }
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text)
@@ -80,18 +85,8 @@ export function DashboardContent() {
     setTimeout(() => setCopiedKey(null), 2000)
   }
 
-  const copyHtmlToClipboard = (html: string) => {
-    navigator.clipboard.writeText(html)
-    setCopiedHtml(true)
-    setTimeout(() => setCopiedHtml(false), 2000)
-  }
-
-  if (loading || !session) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <Shield className="w-12 h-12 animate-pulse text-cyan-400" />
-      </div>
-    )
+  if (loading) {
+    return <DashboardSkeleton />
   }
 
   const successRate =
@@ -102,20 +97,10 @@ export function DashboardContent() {
   const botRate =
     stats && stats.totalVerifications > 0 ? ((stats.botAttempts / stats.totalVerifications) * 100).toFixed(1) : "0"
 
-  const integrationHtml = `<div id="astracaph-widget"></div>
-<script src="${window.location.origin}/api/widget" data-sitekey="${session.siteKey.publicKey}" data-theme="dark" async defer></script>`
-
   return (
     <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-      {/* Welcome Header */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-bold text-white">Welcome, {session.user.email}</h1>
-        <p className="text-zinc-400">Here's an overview of your CAPTCHA performance.</p>
-      </motion.div>
-
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Total Verifications */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -124,11 +109,11 @@ export function DashboardContent() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">{stats?.totalVerifications.toLocaleString() || 0}</div>
+              <p className="text-xs text-zinc-500 mt-1">All time verifications</p>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Success Rate */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -137,11 +122,11 @@ export function DashboardContent() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-400">{successRate}%</div>
+              <p className="text-xs text-zinc-500 mt-1">{stats?.successfulVerifications || 0} successful</p>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Bot Attempts */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -150,133 +135,144 @@ export function DashboardContent() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-400">{stats?.botAttempts || 0}</div>
+              <p className="text-xs text-zinc-500 mt-1">{botRate}% of total</p>
             </CardContent>
           </Card>
         </motion.div>
-      </div>
 
-      {/* Integration & Site Key */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader>
-              <CardTitle className="text-white">Integration Code</CardTitle>
-              <CardDescription className="text-zinc-400">
-                Paste this snippet into your HTML where you want the CAPTCHA to appear.
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-white">Site Keys</CardTitle>
+                  <CardDescription className="text-zinc-400">Manage your API keys and domains</CardDescription>
+                </div>
+                <Button onClick={createSiteKey} className="bg-cyan-500 hover:bg-cyan-600 text-white">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Site Key
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="bg-zinc-900 p-4 rounded-lg relative">
-                <pre className="text-cyan-400 text-sm overflow-x-auto">
-                  <code>{integrationHtml}</code>
-                </pre>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => copyHtmlToClipboard(integrationHtml)}
-                  className="absolute top-2 right-2 h-7 w-7 p-0"
-                >
-                  {copiedHtml ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-          <Card className="bg-zinc-900/50 border-zinc-800">
-            <CardHeader>
-              <CardTitle className="text-white">Your Site Key</CardTitle>
-              <CardDescription className="text-zinc-400">
-                Domain: {session.siteKey.domain}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-zinc-400 w-24">Public Key:</span>
-                <code className="flex-1 text-sm bg-zinc-900 px-2 py-1 rounded text-cyan-400 font-mono truncate">
-                  {session.siteKey.publicKey}
-                </code>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => copyToClipboard(session.siteKey.publicKey, "publicKey")}
-                  className="h-7 w-7 p-0"
-                >
-                  {copiedKey === "publicKey" ? (
-                    <Check className="w-4 h-4 text-green-400" />
-                  ) : (
-                    <Copy className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      {/* Recent Activity */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
-        <Card className="bg-zinc-900/50 border-zinc-800">
-          <CardHeader>
-            <CardTitle className="text-white">Recent Verifications</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {stats?.recentLogs && stats.recentLogs.length > 0 ? (
-                stats.recentLogs
-                  .slice(0, 10)
-                  .map((log, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-lg text-sm"
-                    >
-                      <div className="flex items-center gap-3">
-                        {log.success ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-400" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-red-400" />
-                        )}
-                        <span className="text-zinc-300">{log.ip || "Unknown IP"}</span>
-                        {log.country && (
-                          <span className="text-xs text-zinc-500 px-2 py-0.5 bg-zinc-800 rounded">
-                            {log.country}
-                          </span>
-                        )}
-                        {log.bot && (
-                          <span className="text-xs text-red-400 px-2 py-0.5 bg-red-500/10 rounded">BOT</span>
-                        )}
+              <div className="space-y-4">
+                {siteKeys.map((key) => (
+                  <div key={key.publicKey} className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Key className="w-4 h-4 text-cyan-400" />
+                        <span className="text-sm font-medium text-white">{key.domain}</span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-zinc-500">Score: {log.score}</span>
-                        <span className="text-xs text-zinc-600">
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </span>
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full ${
+                          key.enabled ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
+                        }`}
+                      >
+                        {key.enabled ? "Active" : "Disabled"}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-500 w-20">Public:</span>
+                        <code className="flex-1 text-xs bg-zinc-900 px-2 py-1 rounded text-cyan-400 font-mono">
+                          {key.publicKey}
+                        </code>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => copyToClipboard(key.publicKey, key.publicKey)}
+                          className="h-7 w-7 p-0"
+                        >
+                          {copiedKey === key.publicKey ? (
+                            <Check className="w-3 h-3 text-green-400" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-500 w-20">Secret:</span>
+                        <code className="flex-1 text-xs bg-zinc-900 px-2 py-1 rounded text-pink-400 font-mono">
+                          {key.secretKey.substring(0, 20)}...
+                        </code>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => copyToClipboard(key.secretKey, key.secretKey)}
+                          className="h-7 w-7 p-0"
+                        >
+                          {copiedKey === key.secretKey ? (
+                            <Check className="w-3 h-3 text-green-400" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
+
+                      <div className="text-xs text-zinc-500 mt-2">
+                        Created: {new Date(key.createdAt).toLocaleString()}
                       </div>
                     </div>
-                  ))
-              ) : (
-                <div className="text-center py-8 text-zinc-500 text-sm">No recent verifications</div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-      {/* Domain & Country Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}>
+        {/* Recent Activity */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader>
-              <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4 text-cyan-400" />
-                <CardTitle className="text-white">Top Domains</CardTitle>
-              </div>
+              <CardTitle className="text-white">Recent Verifications</CardTitle>
+              <CardDescription className="text-zinc-400">Latest verification attempts</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {stats?.byDomain && Object.keys(stats.byDomain).length > 0 ? (
-                  Object.entries(stats.byDomain)
+              <div className="space-y-2">
+                {stats?.recentLogs.slice(0, 10).map((log, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-lg text-sm">
+                    <div className="flex items-center gap-3">
+                      {log.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-400" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-red-400" />
+                      )}
+                      <span className="text-zinc-300">{log.ip || "Unknown IP"}</span>
+                      {log.country && (
+                        <span className="text-xs text-zinc-500 px-2 py-0.5 bg-zinc-800 rounded">{log.country}</span>
+                      )}
+                      {log.bot && <span className="text-xs text-red-400 px-2 py-0.5 bg-red-500/10 rounded">BOT</span>}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-zinc-500">Score: {log.score}</span>
+                      <span className="text-xs text-zinc-600">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+                ))}
+
+                {(!stats?.recentLogs || stats.recentLogs.length === 0) && (
+                  <div className="text-center py-8 text-zinc-500 text-sm">No recent verifications</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Domain & Country Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}>
+            <Card className="bg-zinc-900/50 border-zinc-800">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-cyan-400" />
+                  <CardTitle className="text-white">Top Domains</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {Object.entries(stats?.byDomain || {})
                     .sort(([, a], [, b]) => b - a)
                     .slice(0, 5)
                     .map(([domain, count]) => (
@@ -284,27 +280,26 @@ export function DashboardContent() {
                         <span className="text-sm text-zinc-300">{domain}</span>
                         <span className="text-sm font-medium text-cyan-400">{count}</span>
                       </div>
-                    ))
-                ) : (
-                  <div className="text-center py-4 text-zinc-500 text-sm">No domain data</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+                    ))}
+                  {Object.keys(stats?.byDomain || {}).length === 0 && (
+                    <div className="text-center py-4 text-zinc-500 text-sm">No domain data</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}>
-          <Card className="bg-zinc-900/50 border-zinc-800">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-cyan-400" />
-                <CardTitle className="text-white">Top Countries</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {stats?.byCountry && Object.keys(stats.byCountry).length > 0 ? (
-                  Object.entries(stats.byCountry)
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}>
+            <Card className="bg-zinc-900/50 border-zinc-800">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-cyan-400" />
+                  <CardTitle className="text-white">Top Countries</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {Object.entries(stats?.byCountry || {})
                     .sort(([, a], [, b]) => b - a)
                     .slice(0, 5)
                     .map(([country, count]) => (
@@ -312,14 +307,15 @@ export function DashboardContent() {
                         <span className="text-sm text-zinc-300">{country}</span>
                         <span className="text-sm font-medium text-cyan-400">{count}</span>
                       </div>
-                    ))
-                ) : (
-                  <div className="text-center py-4 text-zinc-500 text-sm">No country data</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+                    ))}
+                  {Object.keys(stats?.byCountry || {}).length === 0 && (
+                    <div className="text-center py-4 text-zinc-500 text-sm">No country data</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
       </div>
     </div>
   )

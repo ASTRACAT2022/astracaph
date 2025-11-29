@@ -1,5 +1,3 @@
-import crypto from "crypto"
-
 // In-memory storage for AstraCaph - no external databases
 interface ChallengeData {
   token: string
@@ -17,15 +15,6 @@ interface SiteKeyData {
   domain: string
   enabled: boolean
   createdAt: number
-}
-
-interface UserData {
-  id: string
-  email: string
-  passwordHash: string
-  siteKey: string
-  createdAt: number
-  sessionToken?: string,
 }
 
 interface VerificationLog {
@@ -51,7 +40,6 @@ interface Statistics {
 class CaptchaStorage {
   private challenges: Map<string, ChallengeData> = new Map()
   private siteKeys: Map<string, SiteKeyData> = new Map()
-  private users: Map<string, UserData> = new Map()
   private logs: VerificationLog[] = []
   private stats: Statistics = {
     totalVerifications: 0,
@@ -163,41 +151,6 @@ class CaptchaStorage {
 
   getAllSiteKeys(): SiteKeyData[] {
     return Array.from(this.siteKeys.values())
-  }
-
-  // User management
-  createUser(email: string, passwordHash: string): UserData {
-    if (this.getUserByEmail(email)) {
-      throw new Error("User with this email already exists")
-    }
-    const siteKey = this.createSiteKey(email)
-    const user: UserData = {
-      id: this.generateId(16),
-      email,
-      passwordHash,
-      siteKey: siteKey.publicKey,
-      createdAt: Date.now(),
-    }
-    this.users.set(user.id, user)
-    return user
-  }
-
-  getUserByEmail(email: string): UserData | undefined {
-    return Array.from(this.users.values()).find((user) => user.email === email)
-  }
-
-  getUserBySessionToken(token: string): UserData | undefined {
-    return Array.from(this.users.values()).find((user) => user.sessionToken === token)
-  }
-
-  createSessionToken(userId: string): string | null {
-    const user = this.users.get(userId)
-    if (user) {
-      const token = crypto.randomBytes(32).toString("hex")
-      user.sessionToken = token
-      return token
-    }
-    return null
   }
 
   // Rate limiting

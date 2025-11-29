@@ -1,29 +1,10 @@
-"use client"
-
-import { Suspense, useState, useEffect } from "react"
+import { Suspense } from "react"
 import Link from "next/link"
 import { Shield, Zap, Lock, BarChart3, ArrowRight, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AstraCaptchaWidget } from "@/components/captcha/astra-captcha-widget"
-import { useRouter } from "next/navigation"
 
 export default function HomePage() {
-  const [session, setSession] = useState(null)
-  const router = useRouter()
-
-  useEffect(() => {
-    const sessionData = localStorage.getItem("astra-session")
-    if (sessionData) {
-      setSession(JSON.parse(sessionData))
-    }
-  }, [])
-
-  const handleLogout = () => {
-    localStorage.removeItem("astra-session")
-    setSession(null)
-    router.push("/")
-  }
-
   return (
     <div className="min-h-screen bg-black">
       {/* Header */}
@@ -40,29 +21,17 @@ export default function HomePage() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              {session ? (
-                <>
-                  <Link href="/admin">
-                    <Button variant="ghost" className="text-zinc-300 hover:text-white">
-                      Dashboard
-                    </Button>
-                  </Link>
-                  <Button variant="ghost" onClick={handleLogout} className="text-zinc-300 hover:text-white">
-                    Logout
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Link href="/login">
-                    <Button variant="ghost" className="text-zinc-300 hover:text-white">
-                      Sign In
-                    </Button>
-                  </Link>
-                  <Link href="/register">
-                    <Button className="bg-cyan-500 hover:bg-cyan-600 text-white">Get Started</Button>
-                  </Link>
-                </>
-              )}
+              <Link href="/admin">
+                <Button variant="ghost" className="text-zinc-300 hover:text-white">
+                  Dashboard
+                </Button>
+              </Link>
+              <Link href="/api/v1/docs">
+                <Button variant="ghost" className="text-zinc-300 hover:text-white">
+                  API Docs
+                </Button>
+              </Link>
+              <Button className="bg-cyan-500 hover:bg-cyan-600 text-white">Get Started</Button>
             </div>
           </div>
         </div>
