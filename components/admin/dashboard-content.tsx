@@ -59,10 +59,16 @@ export function DashboardContent() {
           Authorization: `Bearer ${currentSession.token}`,
         },
       })
-      const statsData = await statsRes.json()
-      setStats(statsData)
+      if (statsRes.ok) {
+        const statsData = await statsRes.json()
+        setStats(statsData)
+      } else {
+        console.error(`[v0] Failed to load stats: ${statsRes.status} ${statsRes.statusText}`)
+        setStats(null)
+      }
     } catch (error) {
       console.error("[v0] Failed to load data:", error)
+      setStats(null)
     } finally {
       setLoading(false)
     }
@@ -102,8 +108,11 @@ export function DashboardContent() {
   const botRate =
     stats && stats.totalVerifications > 0 ? ((stats.botAttempts / stats.totalVerifications) * 100).toFixed(1) : "0"
 
-  const integrationHtml = `<div id="astracaph-widget"></div>
-<script src="${window.location.origin}/api/widget" data-sitekey="${session.siteKey.publicKey}" data-theme="dark" async defer></script>`
+  const integrationHtml = `<iframe
+  src="${window.location.origin}/captcha/widget?siteKey=${session.siteKey.publicKey}&theme=dark"
+  style="width: 100%; max-width: 400px; height: 480px; border: none; overflow: hidden;"
+  title="AstraCaph Security Verification"
+></iframe>`
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
@@ -123,7 +132,9 @@ export function DashboardContent() {
               <Activity className="w-4 h-4 text-zinc-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{stats?.totalVerifications.toLocaleString() || 0}</div>
+              <div className="text-2xl font-bold text-white">
+                {(stats?.totalVerifications || 0).toLocaleString()}
+              </div>
             </CardContent>
           </Card>
         </motion.div>
