@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { CaptchaSecurityService } from "@/lib/captcha/security"
 import { captchaStorage } from "@/lib/captcha/storage"
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams

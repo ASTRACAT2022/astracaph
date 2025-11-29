@@ -12,7 +12,7 @@ Embed the following HTML snippet into your web page where you want the CAPTCHA w
 
 ```html
 <iframe
-  src="https://astracaph.vercel.app/captcha/widget?siteKey=pk_l6ANF1UylGu2Ccx7&theme=dark"
+  src="https://astracaph.vercel.app/captcha/widget?siteKey=pk_demo_astracat_captcha_public&theme=dark"
   width="350"
   height="500"
   frameborder="0"
