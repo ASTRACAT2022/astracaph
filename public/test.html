@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Captcha Test</title>
+  <style>
+    body {
+      background-color: #111;
+      color: #eee;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    #captcha-result {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #333;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Test Page for AstraCaph</h1>
+  <div id="astracaph-widget"></div>
+  <script src="/api/widget" data-sitekey="demo" data-theme="dark" async defer></script>
+  <div id="captcha-result">Waiting for verification...</div>
+
+  <script>
+    document.addEventListener('astracaph-verified', (event) => {
+      const resultDiv = document.getElementById('captcha-result');
+      resultDiv.textContent = 'Verification result: ' + JSON.stringify(event.detail);
+    });
+  </script>
+</body>
+</html>
