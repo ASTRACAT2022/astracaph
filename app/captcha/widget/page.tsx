@@ -14,10 +14,8 @@ function WidgetContent() {
   }
 
   const handleVerify = (token: string, success: boolean) => {
-    window.parent.postMessage({
-      type: 'astracaph-verified',
-      detail: { token, success }
-    }, '*')
+    const targetOrigin = document.referrer ? new URL(document.referrer).origin : "*"
+    window.parent.postMessage({ token, success }, targetOrigin)
   }
 
   return (
