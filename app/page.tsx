@@ -1,27 +1,44 @@
 "use client"
 
-import { Suspense, useState, useEffect } from "react"
+import { Suspense, useState } from "react"
 import Link from "next/link"
-import { Shield, Zap, Lock, BarChart3, ArrowRight, CheckCircle2 } from "lucide-react"
+import { Shield, Zap, Lock, ArrowRight, CheckCircle2, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AstraCaptchaWidget } from "@/components/captcha/astra-captcha-widget"
-import { useRouter } from "next/navigation"
+
+const CopyButton = ({ text }: { text: string }) => {
+  const [copied, setCopied] = useState(false)
+
+  const onCopy = () => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Button onClick={onCopy} size="icon" variant="ghost" className="text-zinc-400 hover:text-white">
+      {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+    </Button>
+  )
+}
 
 export default function HomePage() {
-  const [session, setSession] = useState(null)
-  const router = useRouter()
+  const [siteKey, setSiteKey] = useState("")
+  const [secretKey, setSecretKey] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
-  useEffect(() => {
-    const sessionData = localStorage.getItem("astra-session")
-    if (sessionData) {
-      setSession(JSON.parse(sessionData))
+  const handleCreateSiteKey = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch("/api/create-site-key", { method: "POST" })
+      const data = await response.json()
+      setSiteKey(data.siteKey)
+      setSecretKey(data.secretKey)
+    } catch (error) {
+      console.error("Failed to create site key:", error)
+    } finally {
+      setIsLoading(false)
     }
-  }, [])
-
-  const handleLogout = () => {
-    localStorage.removeItem("astra-session")
-    setSession(null)
-    router.push("/")
   }
 
   return (
@@ -40,29 +57,11 @@ export default function HomePage() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              {session ? (
-                <>
-                  <Link href="/admin">
-                    <Button variant="ghost" className="text-zinc-300 hover:text-white">
-                      Dashboard
-                    </Button>
-                  </Link>
-                  <Button variant="ghost" onClick={handleLogout} className="text-zinc-300 hover:text-white">
-                    Logout
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Link href="/login">
-                    <Button variant="ghost" className="text-zinc-300 hover:text-white">
-                      Sign In
-                    </Button>
-                  </Link>
-                  <Link href="/register">
-                    <Button className="bg-cyan-500 hover:bg-cyan-600 text-white">Get Started</Button>
-                  </Link>
-                </>
-              )}
+              <Link href="/documentation">
+                <Button variant="ghost" className="text-zinc-300 hover:text-white">
+                  Documentation
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -87,13 +86,10 @@ export default function HomePage() {
                 Everything runs in your infrastructure.
               </p>
               <div className="flex gap-4">
-                <Button className="bg-cyan-500 hover:bg-cyan-600 text-white">
-                  View Documentation
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-                <Link href="/admin">
-                  <Button variant="outline" className="border-zinc-700 text-white hover:bg-zinc-900 bg-transparent">
-                    Try Demo
+                <Link href="/documentation">
+                  <Button className="bg-cyan-500 hover:bg-cyan-600 text-white">
+                    View Documentation
+                    <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </Link>
               </div>
@@ -104,7 +100,7 @@ export default function HomePage() {
                   "No external dependencies",
                   "Sub-100ms response time",
                   "Advanced bot detection",
-                  "Real-time analytics",
+                  "Easy Integration",
                 ].map((feature) => (
                   <div key={feature} className="flex items-center gap-2 text-sm text-zinc-300">
                     <CheckCircle2 className="w-4 h-4 text-cyan-400" />
@@ -118,7 +114,7 @@ export default function HomePage() {
             <div className="flex justify-center">
               <Suspense fallback={<div className="w-full max-w-md h-64 bg-zinc-900 rounded-lg animate-pulse" />}>
                 <AstraCaptchaWidget
-                  siteKey="demo"
+                  siteKey="pk_demo_astracat_captcha_public"
                   onVerify={(token, success) => {
                     console.log("Demo verification:", { token, success })
                   }}
@@ -127,6 +123,45 @@ export default function HomePage() {
               </Suspense>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Get API Keys Section */}
+      <section className="py-20 px-6 border-t border-zinc-800">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl font-bold text-white mb-4">Get Your API Keys</h2>
+          <p className="text-zinc-400 mb-8">
+            Click the button below to generate a new site key and secret key for your application.
+          </p>
+          <Button
+            onClick={handleCreateSiteKey}
+            disabled={isLoading}
+            className="bg-cyan-500 hover:bg-cyan-600 text-white"
+          >
+            {isLoading ? "Generating..." : "Generate Keys"}
+          </Button>
+
+          {siteKey && secretKey && (
+            <div className="mt-12 space-y-4 text-left">
+              <div className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg">
+                <label className="text-sm text-zinc-400">Site Key</label>
+                <div className="flex items-center gap-2">
+                  <pre className="text-sm text-white flex-1 truncate">{siteKey}</pre>
+                  <CopyButton text={siteKey} />
+                </div>
+              </div>
+              <div className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg">
+                <label className="text-sm text-zinc-400">Secret Key</label>
+                <div className="flex items-center gap-2">
+                  <pre className="text-sm text-white flex-1 truncate">{secretKey}</pre>
+                  <CopyButton text={secretKey} />
+                </div>
+              </div>
+              <p className="text-xs text-zinc-500 text-center pt-4">
+                Store your secret key securely. It should not be exposed on the client-side.
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -149,11 +184,6 @@ export default function HomePage() {
                 icon: Lock,
                 title: "Secure by Default",
                 description: "HMAC signatures, rate limiting, and advanced bot detection built-in",
-              },
-              {
-                icon: BarChart3,
-                title: "Deep Analytics",
-                description: "Real-time insights into threats, performance, and user behavior",
               },
             ].map((feature) => {
               const Icon = feature.icon
