@@ -73,15 +73,17 @@ class CaptchaStorage {
       createdAt: Date.now(),
     })
 
-    if (process.env.SITE_KEY_SECRET) {
-      this.siteKeys.set("pk_l6ANF1UylGu2Ccx7", {
-        publicKey: "pk_l6ANF1UylGu2Ccx7",
-        secretKey: process.env.SITE_KEY_SECRET,
-        domain: "*",
-        enabled: true,
-        createdAt: Date.now(),
-      })
-    }
+fix-captcha-loading-error
+    this.siteKeys.set("pk_l6ANF1UylGu2Ccx7", {
+      publicKey: "pk_l6ANF1UylGu2Ccx7",
+      secretKey: process.env.SITE_KEY_SECRET || "sk_l6ANF1UylGu2Ccx7_secret",
+      domain: "*",
+      enabled: true,
+      createdAt: Date.now(),
+    })
+
+   
+    main
 
     // Clean up expired challenges every 5 minutes
     setInterval(() => this.cleanupExpiredChallenges(), 5 * 60 * 1000)

@@ -154,7 +154,6 @@ export function AstraCaptchaWidget({ siteKey, onVerify, theme = "dark" }: AstraC
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: challenge.token,
-          secretKey: "sk_demo_astracat_captcha_secret", // In real implementation, this comes from server
           userResponse: {
             interactionTime,
             mouseMovements: mouseMovementsRef.current,
