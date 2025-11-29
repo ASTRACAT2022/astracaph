@@ -19,15 +19,6 @@ interface SiteKeyData {
   createdAt: number
 }
 
-interface UserData {
-  id: string
-  email: string
-  passwordHash: string
-  siteKey: string
-  createdAt: number
-  sessionToken?: string,
-}
-
 interface VerificationLog {
   timestamp: number
   success: boolean
@@ -51,21 +42,11 @@ interface Statistics {
 class CaptchaStorage {
   private challenges: Map<string, ChallengeData> = new Map()
   private siteKeys: Map<string, SiteKeyData> = new Map()
-  private users: Map<string, UserData> = new Map()
-  private logs: VerificationLog[] = []
-  private stats: Statistics = {
-    totalVerifications: 0,
-    successfulVerifications: 0,
-    failedVerifications: 0,
-    botAttempts: 0,
-    byDomain: {},
-    byCountry: {},
-  }
   private ipAttempts: Map<string, { count: number; lastAttempt: number }> = new Map()
 
   constructor() {
     // Initialize with demo site key
-    this.siteKeys.set("demo", {
+    this.siteKeys.set("pk_demo_astracat_captcha_public", {
       publicKey: "pk_demo_astracat_captcha_public",
       secretKey: "sk_demo_astracat_captcha_secret",
       domain: "*",
@@ -73,19 +54,8 @@ class CaptchaStorage {
       createdAt: Date.now(),
     })
 
-    this.siteKeys.set("pk_l6ANF1UylGu2Ccx7", {
-      publicKey: "pk_l6ANF1UylGu2Ccx7",
-      secretKey: process.env.SITE_KEY_SECRET || "sk_fallback_secret_for_demo",
-      domain: "*",
-      enabled: true,
-      createdAt: Date.now(),
-    })
-
     // Clean up expired challenges every 5 minutes
     setInterval(() => this.cleanupExpiredChallenges(), 5 * 60 * 1000)
-
-    // Clean up old logs every hour (keep last 10000)
-    setInterval(() => this.cleanupOldLogs(), 60 * 60 * 1000)
   }
 
   // Challenge management
@@ -173,41 +143,6 @@ class CaptchaStorage {
     return Array.from(this.siteKeys.values())
   }
 
-  // User management
-  createUser(email: string, passwordHash: string): UserData {
-    if (this.getUserByEmail(email)) {
-      throw new Error("User with this email already exists")
-    }
-    const siteKey = this.createSiteKey(email)
-    const user: UserData = {
-      id: this.generateId(16),
-      email,
-      passwordHash,
-      siteKey: siteKey.publicKey,
-      createdAt: Date.now(),
-    }
-    this.users.set(user.id, user)
-    return user
-  }
-
-  getUserByEmail(email: string): UserData | undefined {
-    return Array.from(this.users.values()).find((user) => user.email === email)
-  }
-
-  getUserBySessionToken(token: string): UserData | undefined {
-    return Array.from(this.users.values()).find((user) => user.sessionToken === token)
-  }
-
-  createSessionToken(userId: string): string | null {
-    const user = this.users.get(userId)
-    if (user) {
-      const token = crypto.randomBytes(32).toString("hex")
-      user.sessionToken = token
-      return token
-    }
-    return null
-  }
-
   // Rate limiting
   checkRateLimit(ip: string, maxAttempts = 10, windowMs = 60000): boolean {
     const now = Date.now()
@@ -232,53 +167,6 @@ class CaptchaStorage {
     record.count++
     record.lastAttempt = now
     return true
-  }
-
-  // Logging and statistics
-  addLog(log: Omit<VerificationLog, "timestamp">): void {
-    this.logs.push({
-      ...log,
-      timestamp: Date.now(),
-    })
-
-    // Update statistics
-    this.stats.totalVerifications++
-    if (log.success) {
-      this.stats.successfulVerifications++
-    } else {
-      this.stats.failedVerifications++
-    }
-    if (log.bot) {
-      this.stats.botAttempts++
-    }
-
-    // Update domain stats
-    const siteKey = this.siteKeys.get(log.siteKey)
-    if (siteKey) {
-      this.stats.byDomain[siteKey.domain] = (this.stats.byDomain[siteKey.domain] || 0) + 1
-    }
-
-    // Update country stats
-    if (log.country) {
-      this.stats.byCountry[log.country] = (this.stats.byCountry[log.country] || 0) + 1
-    }
-  }
-
-  getLogs(limit = 100): VerificationLog[] {
-    return this.logs.slice(-limit).reverse()
-  }
-
-  getStatistics(): Statistics & { recentLogs: VerificationLog[] } {
-    return {
-      ...this.stats,
-      recentLogs: this.getLogs(10),
-    }
-  }
-
-  private cleanupOldLogs(): void {
-    if (this.logs.length > 10000) {
-      this.logs = this.logs.slice(-10000)
-    }
   }
 
   // Utility
