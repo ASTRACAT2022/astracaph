@@ -1,3 +1,5 @@
+"use client"
+
 import { Suspense } from "react"
 import Link from "next/link"
 import { Shield, Zap, Lock, BarChart3, ArrowRight, CheckCircle2 } from "lucide-react"
