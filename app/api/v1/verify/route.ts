@@ -6,10 +6,10 @@ import type { CaptchaVerificationRequest, CaptchaVerificationResponse } from "@/
 export async function POST(request: NextRequest) {
   try {
     const body: CaptchaVerificationRequest = await request.json()
-    const { token, secretKey, userResponse } = body
+    const { token, userResponse } = body
 
     // Validate inputs
-    if (!token || !secretKey || !userResponse) {
+    if (!token || !userResponse) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
@@ -46,10 +46,6 @@ export async function POST(request: NextRequest) {
       } as CaptchaVerificationResponse)
     }
 
-    // Verify secret key matches challenge site key
-    if (!captchaStorage.validateSiteKey(challenge.siteKey, secretKey)) {
-      return NextResponse.json({ error: "Invalid secret key" }, { status: 401 })
-    }
 
     // Check if already solved (prevent replay attacks)
     if (challenge.solved) {

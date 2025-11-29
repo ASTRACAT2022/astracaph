@@ -73,6 +73,14 @@ class CaptchaStorage {
       createdAt: Date.now(),
     })
 
+    this.siteKeys.set("pk_l6ANF1UylGu2Ccx7", {
+      publicKey: "pk_l6ANF1UylGu2Ccx7",
+      secretKey: process.env.SITE_KEY_SECRET || "sk_l6ANF1UylGu2Ccx7_secret",
+      domain: "*",
+      enabled: true,
+      createdAt: Date.now(),
+    })
+
     // Clean up expired challenges every 5 minutes
     setInterval(() => this.cleanupExpiredChallenges(), 5 * 60 * 1000)
 
