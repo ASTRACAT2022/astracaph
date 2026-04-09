@@ -66,6 +66,7 @@ export function scoreTelemetry(
   const reasons: string[] = [];
   const motion = analyzeMotion(input.motion);
   const { fingerprint, behavior, interaction } = input;
+  const suspiciousUserAgent = /bot|spider|crawler|curl|python/i.test(fingerprint.userAgent);
   let score = 0.18;
 
   if (fingerprint.webdriver) {
@@ -73,7 +74,7 @@ export function scoreTelemetry(
     reasons.push("webdriver flag detected");
   }
 
-  if (/bot|spider|crawler|curl|python/i.test(fingerprint.userAgent)) {
+  if (suspiciousUserAgent) {
     score += 0.4;
     reasons.push("suspicious user-agent");
   }
@@ -151,6 +152,21 @@ export function scoreTelemetry(
     }
   }
 
+  const requiresExtendedPhysicalChallenge = Boolean(
+    ipIntel &&
+      (
+        ipIntel.classification === "hosting" ||
+        ipIntel.classification === "mobile" ||
+        ipIntel.classification === "unknown" ||
+        ipIntel.staticLikelihood === "unlikely_home" ||
+        ipIntel.flags.proxy ||
+        ipIntel.flags.vpn ||
+        ipIntel.flags.tor ||
+        ipIntel.flags.hosting ||
+        ipIntel.flags.datacenter
+      ),
+  );
+
   score = clamp(score, 0, 1);
 
   let decision: ScoreResult["decision"] = "allow";
@@ -160,9 +176,29 @@ export function scoreTelemetry(
     decision = "challenge";
   }
 
+  if (decision === "deny" && requiresExtendedPhysicalChallenge && !fingerprint.webdriver && !suspiciousUserAgent) {
+    decision = "challenge";
+    reasons.push("non-residential ip downgraded to extended physical challenge");
+  }
+
   if (decision === "allow" && reasons.length === 0) {
     reasons.push("low-risk passive profile");
   }
+
+  const challenge =
+    decision === "challenge"
+      ? {
+          type: requiresExtendedPhysicalChallenge ? ("press_hold" as const) : ("confirm" as const),
+          requiredHoldMs: requiresExtendedPhysicalChallenge ? 3200 : 0,
+          reason: requiresExtendedPhysicalChallenge
+            ? ("non_residential_ip" as const)
+            : ("standard" as const),
+        }
+      : {
+          type: "confirm" as const,
+          requiredHoldMs: 0,
+          reason: "standard" as const,
+        };
 
   return {
     score: Number(score.toFixed(2)),
@@ -175,6 +211,7 @@ export function scoreTelemetry(
       idlePauses: motion.idlePauses,
     },
     ipIntel,
+    challenge,
   };
 }
 

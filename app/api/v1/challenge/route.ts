@@ -161,12 +161,18 @@ export async function POST(request: Request): Promise<Response> {
       createdAt: Date.now(),
       fingerprintHash,
       score: score.score,
+      challengeType: score.challenge.type,
+      requiredHoldMs: score.challenge.requiredHoldMs,
+      challengeReason: score.challenge.reason,
     });
     await incrementSiteStat(site.siteKey, "challenged");
     const responseBody = {
       state: "visual_challenge",
       needsVisual: true,
       challengeId,
+      challengeType: score.challenge.type,
+      requiredHoldMs: score.challenge.requiredHoldMs,
+      challengeReason: score.challenge.reason,
       score: score.score,
       reasons: score.reasons,
       ipIntel: score.ipIntel,
@@ -219,6 +225,39 @@ export async function POST(request: Request): Promise<Response> {
       return jsonResponse(
         responseBody,
         { status: 400 },
+        baseHeaders,
+      );
+    }
+
+    const actualHoldMs = Math.max(0, body.interaction.holdDurationMs ?? 0);
+    if (stored.requiredHoldMs > 0 && actualHoldMs < stored.requiredHoldMs) {
+      const responseBody = {
+        state: "visual_challenge",
+        needsVisual: true,
+        challengeId: stored.id,
+        challengeType: stored.challengeType,
+        requiredHoldMs: stored.requiredHoldMs,
+        challengeReason: stored.challengeReason,
+        error: "Physical confirmation was too short",
+      };
+      await logDebugEvent({
+        route: "/api/v1/challenge",
+        method: "POST",
+        ip,
+        siteKey: site.siteKey,
+        status: 202,
+        summary: "visual challenge hold was too short",
+        request: {
+          page: body.page,
+          challengeId: stored.id,
+          actualHoldMs,
+          requiredHoldMs: stored.requiredHoldMs,
+        },
+        response: responseBody,
+      });
+      return jsonResponse(
+        responseBody,
+        { status: 202 },
         baseHeaders,
       );
     }

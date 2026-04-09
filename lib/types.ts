@@ -34,6 +34,7 @@ export type BehaviorSignal = {
 export type ChallengeInteraction = {
   confirmed?: boolean;
   challengeId?: string;
+  holdDurationMs?: number;
 };
 
 export type ChallengeRequest = {
@@ -95,6 +96,11 @@ export type ScoreResult = {
     idlePauses: number;
   };
   ipIntel?: IpIntelReport;
+  challenge: {
+    type: "confirm" | "press_hold";
+    requiredHoldMs: number;
+    reason: "standard" | "non_residential_ip";
+  };
 };
 
 export type SiteConfig = {
@@ -112,6 +118,9 @@ export type ChallengeRecord = {
   createdAt: number;
   fingerprintHash: string;
   score: number;
+  challengeType: "confirm" | "press_hold";
+  requiredHoldMs: number;
+  challengeReason: "standard" | "non_residential_ip";
 };
 
 export type IssuedTokenRecord = {

@@ -13,6 +13,11 @@ export const widgetSource = String.raw`(() => {
       visualTitle: 'Нужен ещё один шаг',
       visualBody: 'Пассивной проверки оказалось недостаточно. Подтвердите действие.',
       visualButton: 'Подтвердить',
+      holdTitle: 'Удерживайте подтверждение',
+      holdBody: 'Для этой сети нужно более длинное физическое подтверждение.',
+      holdButton: 'Нажмите и удерживайте',
+      holdProgress: 'Удерживайте',
+      holdRetry: 'Подтверждение было слишком коротким. Попробуйте ещё раз.',
       verifiedTitle: 'Проверка пройдена',
       verifiedBody: 'Токен выдан и готов к отправке.',
       failedTitle: 'Проверка не пройдена',
@@ -32,6 +37,11 @@ export const widgetSource = String.raw`(() => {
       visualTitle: 'One last step',
       visualBody: 'Passive checks were inconclusive. Confirm the action to continue.',
       visualButton: 'Confirm',
+      holdTitle: 'Press and hold to confirm',
+      holdBody: 'This network requires a longer physical confirmation step.',
+      holdButton: 'Press and hold',
+      holdProgress: 'Holding',
+      holdRetry: 'Physical confirmation was too short. Please try again.',
       verifiedTitle: 'Verified',
       verifiedBody: 'Token issued and ready for submission.',
       failedTitle: 'Verification failed',
@@ -210,6 +220,10 @@ export const widgetSource = String.raw`(() => {
         background: #0b0b0b;
         color: #ffffff;
       }
+      .button[data-holding="true"] {
+        background: linear-gradient(90deg, #ffffff 0%, #b9b9b9 100%);
+        color: #050505;
+      }
       .button:disabled {
         opacity: 0.7;
         cursor: wait;
@@ -253,7 +267,10 @@ export const widgetSource = String.raw`(() => {
       clickCount: 0,
       focusChanges: 0,
       pointerMoves: 0,
-      challengeId: null
+      challengeId: null,
+      challengeType: 'confirm',
+      requiredHoldMs: 0,
+      holdStartedAt: 0
     };
 
     const style = document.createElement('style');
@@ -296,7 +313,7 @@ export const widgetSource = String.raw`(() => {
     const form = container.closest('form');
     (form || container).appendChild(hiddenInput);
 
-    function updateStatus(kind, title, description, buttonLabel) {
+    function updateStatus(kind, title, description, buttonLabel, buttonMode) {
       if (!statusNode) return;
       let icon = '<div class="ring"></div>';
       if (kind === 'success') icon = '<div class="success">✓</div>';
@@ -315,7 +332,42 @@ export const widgetSource = String.raw`(() => {
         button.className = 'button';
         button.type = 'button';
         button.textContent = buttonLabel;
-        button.addEventListener('click', () => runChallenge(true, button));
+        if (buttonMode === 'press_hold') {
+          let released = false;
+
+          const reset = () => {
+            released = true;
+            state.holdStartedAt = 0;
+            button.dataset.holding = 'false';
+            button.textContent = buttonLabel;
+          };
+
+          const finish = () => {
+            const holdDurationMs = Date.now() - state.holdStartedAt;
+            released = true;
+            button.dataset.holding = 'false';
+            button.textContent = buttonLabel;
+            void runChallenge(true, button, holdDurationMs);
+          };
+
+          button.addEventListener('pointerdown', () => {
+            released = false;
+            state.holdStartedAt = Date.now();
+            button.dataset.holding = 'true';
+            button.textContent = t.holdProgress + ' ' + Math.ceil((state.requiredHoldMs || 0) / 1000) + 's';
+            window.setTimeout(() => {
+              if (!released && state.holdStartedAt > 0) {
+                finish();
+              }
+            }, state.requiredHoldMs || 0);
+          });
+
+          button.addEventListener('pointerup', reset);
+          button.addEventListener('pointerleave', reset);
+          button.addEventListener('pointercancel', reset);
+        } else {
+          button.addEventListener('click', () => runChallenge(true, button, 0));
+        }
         statusNode.appendChild(button);
       }
     }
@@ -335,7 +387,7 @@ export const widgetSource = String.raw`(() => {
     window.addEventListener('focus', () => { state.focusChanges += 1; }, { passive: true });
     container.addEventListener('click', () => { state.clickCount += 1; }, { passive: true });
 
-    async function runChallenge(isVisual, button) {
+    async function runChallenge(isVisual, button, holdDurationMs) {
       if (button) button.disabled = true;
       if (isVisual) {
         updateStatus('loading', t.confirmingTitle, t.confirmingBody);
@@ -355,7 +407,13 @@ export const widgetSource = String.raw`(() => {
           clickCount: state.clickCount,
           submitLatencyMs: Date.now() - state.startedAt
         },
-        interaction: isVisual ? { confirmed: true, challengeId: state.challengeId } : undefined
+        interaction: isVisual
+          ? {
+              confirmed: true,
+              challengeId: state.challengeId,
+              holdDurationMs: holdDurationMs || 0
+            }
+          : undefined
       };
 
       try {
@@ -373,7 +431,19 @@ export const widgetSource = String.raw`(() => {
 
         if (data.needsVisual && data.challengeId) {
           state.challengeId = data.challengeId;
-          updateStatus('visual', t.visualTitle, t.visualBody, t.visualButton);
+          state.challengeType = data.challengeType || 'confirm';
+          state.requiredHoldMs = data.requiredHoldMs || 0;
+          if (state.challengeType === 'press_hold') {
+            updateStatus(
+              'visual',
+              t.holdTitle,
+              data.error || t.holdBody,
+              t.holdButton,
+              'press_hold'
+            );
+          } else {
+            updateStatus('visual', t.visualTitle, t.visualBody, t.visualButton, 'confirm');
+          }
           return;
         }
 
