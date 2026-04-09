@@ -52,7 +52,6 @@ export function HomeCaptchaDemo({ locale }: { locale: Locale }) {
           <div
             ref={containerRef}
             data-astracaph-container=""
-            data-sitekey="public_demo_key"
             className="min-h-[148px] w-full max-w-[360px]"
           />
         </div>

@@ -1,11 +1,14 @@
 import { getRegisteredSiteByKey, getRegisteredSiteBySecret, listRegisteredSites } from "@/lib/store";
 import { SiteConfig } from "@/lib/types";
 
+export const OPEN_SITE_KEY = "pk_open_astracaph_public";
+export const OPEN_SITE_NAME = "AstraCaph Open";
+
 const fallbackSites: SiteConfig[] = [
   {
-    name: "Demo Site",
-    siteKey: "public_demo_key",
-    secret: "private_demo_secret",
+    name: OPEN_SITE_NAME,
+    siteKey: OPEN_SITE_KEY,
+    secret: process.env.ASTRACAPH_OPEN_SECRET ?? process.env.ASTRACAPH_TOKEN_SECRET ?? "dev-open-secret-change-me",
     origins: ["*"],
     createdAt: 0,
   },
@@ -141,6 +144,28 @@ export async function getSiteBySecret(secret: string): Promise<SiteConfig | unde
 
 export function getTokenSecret(): string {
   return process.env.ASTRACAPH_TOKEN_SECRET ?? "dev-token-secret-change-me";
+}
+
+export function getOpenSiteConfig(): SiteConfig {
+  return {
+    name: OPEN_SITE_NAME,
+    siteKey: OPEN_SITE_KEY,
+    secret: process.env.ASTRACAPH_OPEN_SECRET ?? process.env.ASTRACAPH_TOKEN_SECRET ?? "dev-open-secret-change-me",
+    origins: ["*"],
+    createdAt: 0,
+  };
+}
+
+export async function resolveChallengeSite(siteKey?: string | null): Promise<SiteConfig> {
+  const trimmedSiteKey = siteKey?.trim();
+  if (trimmedSiteKey) {
+    const resolvedSite = await getSiteBySiteKey(trimmedSiteKey);
+    if (resolvedSite) {
+      return resolvedSite;
+    }
+  }
+
+  return getOpenSiteConfig();
 }
 
 export function getVerifyTrustedIps(): string[] {

@@ -9,10 +9,10 @@ export default async function HelpPage() {
     locale === "ru" ? "Iframe Integration API" : "Iframe Integration API";
   const integrationSubtitle =
     locale === "ru"
-      ? "Ниже приведён совместимый сценарий интеграции через iframe, postMessage и server-to-server verify-запрос."
-      : "Below is a compatible integration flow using the iframe widget, postMessage, and server-to-server verification.";
+      ? "Ниже приведён совместимый сценарий интеграции через iframe, postMessage и server-to-server verify-запрос без обязательных frontend-ключей."
+      : "Below is a compatible integration flow using the iframe widget, postMessage, and server-to-server verification without mandatory frontend keys.";
   const iframeSnippet = String.raw`<iframe
-  src={\`${process.env.NEXT_PUBLIC_APP_URL || 'https://caph.astracat.ru'}/captcha/widget?siteKey=pk_demo_astracat_captcha_public&theme=dark\`}
+  src={\`${process.env.NEXT_PUBLIC_APP_URL || 'https://caph.astracat.ru'}/captcha/widget?theme=dark\`}
   width="350"
   height="500"
   frameBorder="0"
@@ -39,7 +39,7 @@ export default async function HelpPage() {
 });`;
   const nodeSnippet = String.raw`app.post("/your-backend-endpoint", async (req, res) => {
   const { token } = req.body;
-  const secretKey = process.env.CAPTCHA_SECRET_KEY;
+  const expectedOrigin = process.env.CAPTCHA_EXPECTED_ORIGIN || "https://example.com";
 
   try {
     const response = await fetch(
@@ -49,7 +49,7 @@ export default async function HelpPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ token, secretKey }),
+        body: JSON.stringify({ token, origin: expectedOrigin }),
       }
     );
 
@@ -73,13 +73,13 @@ app = Flask(__name__)
 @app.route("/your-backend-endpoint", methods=["POST"])
 def verify_captcha():
     token = request.json.get("token")
-    secret_key = os.environ.get("CAPTCHA_SECRET_KEY")
+    expected_origin = os.environ.get("CAPTCHA_EXPECTED_ORIGIN", "https://example.com")
     captcha_verify_url = f"{os.environ.get('NEXT_PUBLIC_APP_URL', 'https://caph.astracat.ru')}/public/api/v1/verify"
 
     try:
         response = requests.post(
             captcha_verify_url,
-            json={"token": token, "secretKey": secret_key}
+            json={"token": token, "origin": expected_origin}
         )
         response.raise_for_status()
         data = response.json()
@@ -140,8 +140,10 @@ def verify_captcha():
             </h2>
             <pre className="mt-4 overflow-x-auto rounded-3xl border border-line bg-night p-5 text-sm leading-7 text-white">
 {`ASTRACAPH_TOKEN_SECRET=replace_with_long_random_secret
-# Optional seeded keys for bootstrapping or internal sites:
-ASTRACAPH_SITE_CONFIG=[{"name":"Seed Site","siteKey":"public_demo_key","secret":"private_demo_secret","origins":["https://example.com"],"createdAt":0}]
+# Optional if you want strict secret-based verification for a custom site:
+ASTRACAPH_OPEN_SECRET=replace_with_private_open_verify_secret
+# Optional seeded sites for internal or enterprise bindings:
+ASTRACAPH_SITE_CONFIG=[{"name":"Seed Site","siteKey":"pk_live_example","secret":"sk_live_example","origins":["https://example.com"],"createdAt":0}]
 UPSTASH_REDIS_REST_URL=...
 UPSTASH_REDIS_REST_TOKEN=...
 VERIFY_TRUSTED_IPS=203.0.113.10,203.0.113.11`}

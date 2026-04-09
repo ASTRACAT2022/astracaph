@@ -38,7 +38,7 @@ export type ChallengeInteraction = {
 };
 
 export type ChallengeRequest = {
-  siteKey: string;
+  siteKey?: string;
   fingerprint: Fingerprint;
   motion: MotionPoint[];
   behavior: BehaviorSignal;

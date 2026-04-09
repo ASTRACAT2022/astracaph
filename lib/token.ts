@@ -7,6 +7,8 @@ export type TokenPayload = {
   iss: "astracaph";
   aud: "astracaph-verify";
   siteKey: string;
+  boundOrigin: string;
+  boundHost: string;
   challengeId: string;
   jti: string;
   score: number;

@@ -14,7 +14,7 @@ function resolveTheme(value: string | null): "dark" | "light" {
 
 export function CaptchaWidgetFrame() {
   const searchParams = useSearchParams();
-  const siteKey = searchParams.get("siteKey") || "pk_demo_astracat_captcha_public";
+  const siteKey = searchParams.get("siteKey") || "pk_open_astracaph_public";
   const theme = resolveTheme(searchParams.get("theme"));
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [token, setToken] = useState("");

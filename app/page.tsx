@@ -27,7 +27,7 @@ export default async function HomePage() {
           <div className="mt-6 overflow-hidden rounded-[24px] border border-line bg-night p-5 text-sm text-white">
             <pre className="overflow-x-auto whitespace-pre-wrap">
 {`<script src="https://caph.astracat.ru/api/v1/widget.js" async defer></script>
-<div id="astracaph-container" data-sitekey="public_key"></div>`}
+<div id="astracaph-container"></div>`}
             </pre>
           </div>
           <div className="mt-6 flex flex-wrap gap-3">

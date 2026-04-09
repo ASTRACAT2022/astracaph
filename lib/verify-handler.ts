@@ -1,4 +1,4 @@
-import { getSiteBySecret, getTokenSecret, getVerifyTrustedIps } from "@/lib/config";
+import { getSiteBySecret, getTokenSecret, getVerifyTrustedIps, normalizeOrigin } from "@/lib/config";
 import { logDebugEvent } from "@/lib/debug-log";
 import { getClientIp, jsonResponse, okOptions } from "@/lib/http";
 import { consumeIssuedToken, incrementSiteStat, rateLimit } from "@/lib/store";
@@ -8,7 +8,31 @@ type VerifyRequest = {
   secret?: string;
   secretKey?: string;
   token?: string;
+  origin?: string;
+  hostname?: string;
+  domain?: string;
+  host?: string;
+  site?: string;
 };
+
+function resolveExpectedOrigin(body: VerifyRequest): string | null {
+  const directOrigin = body.origin?.trim();
+  if (directOrigin) {
+    return normalizeOrigin(directOrigin);
+  }
+
+  const hostLikeValue =
+    body.hostname?.trim() ||
+    body.domain?.trim() ||
+    body.host?.trim() ||
+    body.site?.trim();
+
+  if (!hostLikeValue) {
+    return null;
+  }
+
+  return normalizeOrigin(hostLikeValue);
+}
 
 export function handleVerifyOptions(request: Request): Response {
   return okOptions(request.headers.get("origin"));
@@ -77,14 +101,16 @@ export async function handleVerifyPost(
     return jsonResponse(responseBody, { status: 400 });
   }
 
-  const providedSecret = body.secretKey?.trim() || body.secret?.trim();
   const token = body.token?.trim();
+  const providedSecret = body.secretKey?.trim() || body.secret?.trim();
+  const expectedOrigin = resolveExpectedOrigin(body);
+  const expectedHost = expectedOrigin ? new URL(expectedOrigin).host : null;
 
-  if (!providedSecret || !token) {
+  if (!token) {
     const responseBody = {
       success: false,
-      error: "Both secretKey and token are required",
-      message: "Both secretKey and token are required",
+      error: "Token is required",
+      message: "Token is required",
     };
     await logDebugEvent({
       route: routePath,
@@ -95,24 +121,6 @@ export async function handleVerifyPost(
       response: responseBody,
     });
     return jsonResponse(responseBody, { status: 400 });
-  }
-
-  const site = await getSiteBySecret(providedSecret);
-  if (!site) {
-    const responseBody = {
-      success: false,
-      error: "Unknown secret key",
-      message: "Unknown secret key",
-    };
-    await logDebugEvent({
-      route: routePath,
-      method: "POST",
-      ip,
-      status: 401,
-      summary: "verify unknown secret",
-      response: responseBody,
-    });
-    return jsonResponse(responseBody, { status: 401 });
   }
 
   const payload = await verifyToken(token, getTokenSecret());
@@ -126,7 +134,6 @@ export async function handleVerifyPost(
       route: routePath,
       method: "POST",
       ip,
-      siteKey: site.siteKey,
       status: 401,
       summary: "verify token invalid",
       response: responseBody,
@@ -134,22 +141,90 @@ export async function handleVerifyPost(
     return jsonResponse(responseBody, { status: 401 });
   }
 
-  if (payload.siteKey !== site.siteKey) {
-    const responseBody = {
-      success: false,
-      error: "Token site mismatch",
-      message: "CAPTCHA verification failed.",
-    };
-    await logDebugEvent({
-      route: routePath,
-      method: "POST",
-      ip,
-      siteKey: site.siteKey,
-      status: 403,
-      summary: "verify token site mismatch",
-      response: responseBody,
-    });
-    return jsonResponse(responseBody, { status: 403 });
+  let verifiedSiteKey = payload.siteKey;
+
+  if (providedSecret) {
+    const site = await getSiteBySecret(providedSecret);
+    if (!site) {
+      const responseBody = {
+        success: false,
+        error: "Unknown secret key",
+        message: "Unknown secret key",
+      };
+      await logDebugEvent({
+        route: routePath,
+        method: "POST",
+        ip,
+        status: 401,
+        summary: "verify unknown secret",
+        response: responseBody,
+      });
+      return jsonResponse(responseBody, { status: 401 });
+    }
+
+    verifiedSiteKey = site.siteKey;
+    if (payload.siteKey !== site.siteKey) {
+      const responseBody = {
+        success: false,
+        error: "Token site mismatch",
+        message: "CAPTCHA verification failed.",
+      };
+      await logDebugEvent({
+        route: routePath,
+        method: "POST",
+        ip,
+        siteKey: site.siteKey,
+        status: 403,
+        summary: "verify token site mismatch",
+        response: responseBody,
+      });
+      return jsonResponse(responseBody, { status: 403 });
+    }
+  } else {
+    if (!expectedOrigin || !expectedHost) {
+      const responseBody = {
+        success: false,
+        error: "Provide either a secretKey or your domain/origin together with the token",
+        message: "Verification requires a bound domain or a secret key.",
+      };
+      await logDebugEvent({
+        route: routePath,
+        method: "POST",
+        ip,
+        siteKey: payload.siteKey,
+        status: 400,
+        summary: "verify missing domain binding",
+        response: responseBody,
+      });
+      return jsonResponse(responseBody, { status: 400 });
+    }
+
+    const originMatches =
+      payload.boundOrigin === expectedOrigin ||
+      payload.boundHost === expectedHost;
+
+    if (!originMatches) {
+      const responseBody = {
+        success: false,
+        error: "Token origin mismatch",
+        message: "CAPTCHA verification failed.",
+      };
+      await logDebugEvent({
+        route: routePath,
+        method: "POST",
+        ip,
+        siteKey: payload.siteKey,
+        status: 403,
+        summary: "verify token origin mismatch",
+        request: {
+          expectedOrigin,
+          tokenOrigin: payload.boundOrigin,
+          tokenHost: payload.boundHost,
+        },
+        response: responseBody,
+      });
+      return jsonResponse(responseBody, { status: 403 });
+    }
   }
 
   const issuedRecord = await consumeIssuedToken(payload.jti);
@@ -163,7 +238,7 @@ export async function handleVerifyPost(
       route: routePath,
       method: "POST",
       ip,
-      siteKey: site.siteKey,
+      siteKey: verifiedSiteKey,
       status: 409,
       summary: "verify token already consumed",
       response: responseBody,
@@ -171,12 +246,14 @@ export async function handleVerifyPost(
     return jsonResponse(responseBody, { status: 409 });
   }
 
-  await incrementSiteStat(site.siteKey, "verified");
+  await incrementSiteStat(verifiedSiteKey, "verified");
 
   const responseBody = {
     success: true,
     message: "Verification successful",
-    siteKey: site.siteKey,
+    siteKey: verifiedSiteKey,
+    boundOrigin: payload.boundOrigin,
+    boundHost: payload.boundHost,
     challengeId: payload.challengeId,
     score: payload.score,
     mode: payload.mode,
@@ -189,7 +266,7 @@ export async function handleVerifyPost(
     route: routePath,
     method: "POST",
     ip,
-    siteKey: site.siteKey,
+    siteKey: verifiedSiteKey,
     status: 200,
     summary: "verify success",
     response: {

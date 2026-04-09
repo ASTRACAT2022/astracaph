@@ -1,4 +1,4 @@
-import { getSiteBySiteKey, isOriginAllowed, getTokenSecret } from "@/lib/config";
+import { getTokenSecret, isOriginAllowed, normalizeOrigin, resolveChallengeSite } from "@/lib/config";
 import { logDebugEvent } from "@/lib/debug-log";
 import { sha256 } from "@/lib/hash";
 import { corsHeaders, getClientIp, jsonResponse, okOptions } from "@/lib/http";
@@ -22,11 +22,28 @@ function isChallengeRequest(body: unknown): body is ChallengeRequest {
 
   const candidate = body as Partial<ChallengeRequest>;
   return (
-    typeof candidate.siteKey === "string" &&
+    (typeof candidate.siteKey === "undefined" || typeof candidate.siteKey === "string") &&
     !!candidate.fingerprint &&
     Array.isArray(candidate.motion) &&
     !!candidate.behavior
   );
+}
+
+function resolveBoundOrigin(origin: string | null, referrer: string | undefined): string | null {
+  const normalizedOrigin = normalizeOrigin(origin ?? "");
+  if (normalizedOrigin) {
+    return normalizedOrigin;
+  }
+
+  if (!referrer) {
+    return null;
+  }
+
+  try {
+    return normalizeOrigin(new URL(referrer).origin);
+  } catch {
+    return null;
+  }
 }
 
 export async function OPTIONS(request: Request): Promise<Response> {
@@ -85,21 +102,7 @@ export async function POST(request: Request): Promise<Response> {
     return jsonResponse(responseBody, { status: 400 }, baseHeaders);
   }
 
-  const site = await getSiteBySiteKey(body.siteKey);
-  if (!site) {
-    const responseBody = { error: "Unknown site key" };
-    await logDebugEvent({
-      route: "/api/v1/challenge",
-      method: "POST",
-      ip,
-      siteKey: body.siteKey,
-      status: 404,
-      summary: "challenge unknown site key",
-      request: { page: body.page, interaction: body.interaction },
-      response: responseBody,
-    });
-    return jsonResponse(responseBody, { status: 404 }, baseHeaders);
-  }
+  const site = await resolveChallengeSite(body.siteKey);
 
   if (!isOriginAllowed(origin, site)) {
     const responseBody = { error: "Origin is not allowed for this site key" };
@@ -121,6 +124,8 @@ export async function POST(request: Request): Promise<Response> {
   const ipIntel = await getIpIntel(ip);
   const score = scoreTelemetry(body, ipIntel);
   const fingerprintHash = await sha256(fingerprintSummary(body));
+  const boundOrigin = resolveBoundOrigin(origin, body.referrer);
+  const boundHost = boundOrigin ? new URL(boundOrigin).host : "unknown";
 
   if (score.decision === "deny") {
     await incrementSiteStat(site.siteKey, "failed");
@@ -275,6 +280,8 @@ export async function POST(request: Request): Promise<Response> {
     iss: "astracaph" as const,
     aud: "astracaph-verify" as const,
     siteKey: site.siteKey,
+    boundOrigin: boundOrigin ?? "unknown",
+    boundHost,
     challengeId,
     jti,
     score: score.score,

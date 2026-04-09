@@ -33,7 +33,7 @@ function createDefaultMarkup(locale: Locale) {
     <span>${copy.templateEmail}</span>
     <input name="email" type="email" placeholder="${copy.templateEmailPlaceholder}" style="padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:#08101a;color:#fff;" />
   </label>
-  <div id="astracaph-container" data-sitekey="public_demo_key"></div>
+  <div id="astracaph-container"></div>
   <button type="submit" style="padding:12px 16px;border-radius:999px;border:1px solid rgba(78,167,255,.35);background:rgba(78,167,255,.16);color:#fff;font-weight:700;">
     ${copy.templateButton}
   </button>
@@ -79,7 +79,7 @@ export function SandboxLab({ locale }: { locale: Locale }) {
 
     async function pollLogs() {
       try {
-        const response = await fetch("/api/v1/logs?siteKey=public_demo_key&limit=30", {
+        const response = await fetch("/api/v1/logs?siteKey=pk_open_astracaph_public&limit=30", {
           cache: "no-store",
         });
         const data = (await response.json()) as { logs?: LogEntry[] };
@@ -117,8 +117,8 @@ export function SandboxLab({ locale }: { locale: Locale }) {
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          secret: "private_demo_secret",
           token: lastToken,
+          origin: window.location.origin,
         }),
       });
       const data = (await response.json()) as Record<string, unknown>;

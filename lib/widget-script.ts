@@ -1,7 +1,8 @@
 export const widgetSource = String.raw`(() => {
   const script = document.currentScript || Array.from(document.scripts).find((item) => /\/api\/v1\/widget\.js/.test(item.src));
   const apiOrigin = script ? new URL(script.src).origin : "https://caph.astracat.ru";
-  const selectors = ['#astracaph-container[data-sitekey]', '[data-astracaph-container][data-sitekey]'];
+  const defaultSiteKey = 'pk_open_astracaph_public';
+  const selectors = ['#astracaph-container', '[data-astracaph-container]'];
   const translations = {
     ru: {
       brand: 'ASTRACAPH',
@@ -256,8 +257,7 @@ export const widgetSource = String.raw`(() => {
   }
 
   function initContainer(container) {
-    const siteKey = container.getAttribute('data-sitekey');
-    if (!siteKey) return;
+    const siteKey = container.getAttribute('data-sitekey') || defaultSiteKey;
 
     const root = container.shadowRoot || container.attachShadow({ mode: 'open' });
     const state = {

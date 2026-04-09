@@ -143,11 +143,11 @@ export const dictionaries: Record<Locale, Dictionary> = {
       demoLabel: "Живой пример",
       demoTitle: "Так капча выглядит на реальной странице",
       demoBody:
-        "Ниже встроен настоящий AstraCaph widget с demo key. Можно увидеть реальный интерфейс проверки и токен, который выдаётся после успешного прохождения.",
+        "Ниже встроен настоящий AstraCaph widget в открытом режиме. Можно увидеть реальный интерфейс проверки и токен, который выдаётся после успешного прохождения.",
       demoTokenLabel: "Выданный токен:",
       demoTokenEmpty: "Токен появится здесь после успешной проверки",
       demoFootnote:
-        "Пример использует встроенный demo site key `public_demo_key` и показывает живой production-style UI виджета.",
+        "Пример использует открытый профиль AstraCaph и показывает живой production-style UI виджета без обязательного frontend key.",
       features: [
         "Fingerprint: User-Agent, Canvas, WebGL, часовой пояс, параметры экрана",
         "Анализ движения: плавность траектории, jitter, смены направления, паузы",
@@ -170,32 +170,29 @@ export const dictionaries: Record<Locale, Dictionary> = {
         },
         {
           title: "Открытая выдача ключей",
-          body: "Разработчик может получить рабочую пару ключей по API без регистрации. Ключи сразу привязываются к конкретному origin сайта.",
+          body: "Базовая интеграция работает без frontend-ключа. При необходимости можно дополнительно выпустить секреты и жёстко привязать verify к конкретному origin сайта.",
         },
       ],
     },
     help: {
       eyebrow: "Документация",
-      title: "Зарегистрируйте домен, подключите один скрипт и проверяйте токен на своём бэкенде.",
+      title: "Подключите один скрипт и проверяйте токен на своём бэкенде по origin или secret.",
       subtitle:
-        "AstraCaph поддерживает открытую self-service выдачу ключей. Сначала регистрируется домен или origin, затем public key идёт в виджет, а private key используется в verify-запросах.",
+        "AstraCaph поддерживает открытый режим без обязательных frontend-ключей. Виджет можно встроить сразу, а сервер затем валидирует токен по вашему origin или по secret-ключу в более строгом сценарии.",
       flowNotes: "Поток работы",
       environment: "Рекомендуемые переменные",
       steps: [
         {
-          title: "0. Создайте пару ключей",
-          snippet: `POST https://caph.astracat.ru/api/v1/sites
-Content-Type: application/json
+          title: "0. Определите origin сайта",
+          snippet: `Пример: https://example.com
 
-{
-  "domain": "example.com",
-  "name": "Example store"
-}`,
+Этот origin будет передаваться вашим backend verify-запросом
+в AstraCaph как ожидаемая привязка токена.`,
         },
         {
           title: "1. Подключите виджет",
           snippet: `<script src="https://caph.astracat.ru/api/v1/widget.js" async defer></script>
-<div id="astracaph-container" data-sitekey="public_key"></div>`,
+<div id="astracaph-container"></div>`,
         },
         {
           title: "2. Получите скрытый токен",
@@ -207,12 +204,22 @@ Content-Type: application/json
 Content-Type: application/json
 
 {
-  "secret": "private_key",
-  "token": "user_generated_token"
+  "token": "user_generated_token",
+  "origin": "https://example.com"
 }`,
         },
         {
-          title: "4. Удалите привязанный домен",
+          title: "4. Опционально зарегистрируйте secret-привязку",
+          snippet: `POST https://caph.astracat.ru/api/v1/sites
+Content-Type: application/json
+
+{
+  "domain": "example.com",
+  "name": "Example store"
+}`,
+        },
+        {
+          title: "5. Удалите привязанный домен",
           snippet: `DELETE https://caph.astracat.ru/api/v1/sites
 Content-Type: application/json
 
@@ -223,14 +230,16 @@ Content-Type: application/json
         },
       ],
       apiNotes: [
-        "POST /api/v1/sites создаёт бесплатную регистрацию сайта и возвращает свежие siteKey + secret, привязанные к указанному origin.",
+        "Базовый режим AstraCaph не требует frontend site key: достаточно подключить `/api/v1/widget.js` и контейнер `#astracaph-container`.",
+        "POST /api/v1/verify умеет валидировать токен по `origin` или `domain`, поэтому Vercel deployment может работать без постоянной базы сайтов.",
+        "POST /api/v1/sites создаёт бесплатную регистрацию сайта и возвращает свежие siteKey + secret, если вам нужен отдельный изолированный профиль.",
         "DELETE /api/v1/sites удаляет домен только при наличии правильного sk_live серверного ключа.",
         "Challenge-логика дополнительно запрашивает несколько бесплатных IP-баз и определяет, похож ли IP на хостинг, прокси, VPN, Tor, мобильную сеть или домашний ISP.",
         "POST /api/v1/challenge принимает телеметрию, считает риск и либо выдаёт токен, либо переводит сессию на visual fallback.",
-        "POST /api/v1/verify валидирует подписанный токен, подтверждает владельца по secret key и одноразово расходует токен.",
-        "POST /public/api/v1/verify поддерживает тот же verify-поток и дополнительно принимает поле `secretKey` для server-to-server интеграций.",
+        "POST /api/v1/verify валидирует подписанный токен, проверяет origin-привязку или secret key и одноразово расходует токен.",
+        "POST /public/api/v1/verify поддерживает тот же verify-поток и дополнительно принимает поля `origin`, `domain` и `secretKey` для server-to-server интеграций.",
         "GET /api/v1/widget.js отдаёт framework-free загрузчик для встраивания в любую страницу.",
-        "GET /captcha/widget отдаёт iframe-ready страницу виджета с параметрами `siteKey` и `theme=dark|light`.",
+        "GET /captcha/widget отдаёт iframe-ready страницу виджета с параметрами `theme=dark|light`, а `siteKey` остаётся опциональным для совместимости.",
         "Страница `/sandbox` позволяет живьём тестировать HTML-форму, поведение виджета и логи challenge / verify в одном интерфейсе.",
       ],
     },
@@ -303,19 +312,19 @@ Content-Type: application/json
       editorLabel: "Sandbox HTML",
       editorTitle: "Редактируйте разметку и тестируйте виджет вживую",
       editorBody:
-        "Превью автоматически подключает `/api/v1/widget.js` и ожидает контейнер с `id=\"astracaph-container\"` и `data-sitekey=\"public_demo_key\"`.",
+        "Превью автоматически подключает `/api/v1/widget.js` и ожидает контейнер с `id=\"astracaph-container\"`. `data-sitekey` можно не указывать.",
       editorHint:
         "Можно менять форму, стили и расположение контейнера. Виджет и hidden token будут работать прямо внутри фрейма.",
       previewLabel: "Live Preview",
       previewTitle: "Проверяйте капчу внутри изолированного фрейма",
       previewBody:
-        "События виджета возвращаются на страницу, поэтому здесь удобно смотреть последний токен и сразу запускать ручную verify-проверку встроенным demo secret.",
+        "События виджета возвращаются на страницу, поэтому здесь удобно смотреть последний токен и сразу запускать ручную verify-проверку по текущему origin.",
       previewHint:
         "Sandbox preview. Edit the HTML on the left, interact with the widget here, then inspect server logs on the right.",
       logsLabel: "Request Logs",
       logsTitle: "Смотрите challenge и verify трафик в реальном времени",
       logsBody:
-        "Панель опрашивает `/api/v1/logs` и фильтрует записи для demo site key, чтобы можно было быстро разбирать статусы, summary и server responses.",
+        "Панель опрашивает `/api/v1/logs` и фильтрует записи для открытого профиля AstraCaph, чтобы можно было быстро разбирать статусы, summary и server responses.",
       latestToken: "Последний токен:",
       noToken: "Токен еще не получен",
       previewEvents: "События превью:",
@@ -325,7 +334,7 @@ Content-Type: application/json
       verifyEmpty: "Токена пока нет. Сначала завершите сценарий виджета внутри превью.",
       verifyFailed: "Verify-запрос завершился ошибкой",
       verifyPlaceholder: "Ответ verify появится здесь",
-      demoPair: "Используется встроенная demo-пара: `public_demo_key` / `private_demo_secret`",
+      demoPair: "Используется открытый профиль AstraCaph и origin-bound verify без обязательного demo secret.",
       noLogs: "Логов пока нет. Сначала активируйте виджет внутри превью.",
       missingContainer: "В Sandbox HTML отсутствует элемент #astracaph-container",
       verifiedCaptured: "Поймано событие astracaph:verified",
@@ -357,11 +366,11 @@ Content-Type: application/json
       demoLabel: "Live Demo",
       demoTitle: "This is how the captcha looks on a real page",
       demoBody:
-        "Below is a real AstraCaph widget mounted with the demo key. It shows the actual verification UI and the token issued after a successful pass.",
+        "Below is a real AstraCaph widget mounted in open mode. It shows the actual verification UI and the token issued after a successful pass.",
       demoTokenLabel: "Issued token:",
       demoTokenEmpty: "The token will appear here after successful verification",
       demoFootnote:
-        "This example uses the built-in demo site key `public_demo_key` and renders the live production-style widget UI.",
+        "This example uses AstraCaph's open profile and renders the live production-style widget UI without a mandatory frontend key.",
       features: [
         "Fingerprint: User-Agent, Canvas, WebGL, timezone, screen metrics",
         "Motion analysis: pointer path smoothness, jitter, direction changes, idle pauses",
@@ -384,32 +393,29 @@ Content-Type: application/json
         },
         {
           title: "Open key issuance",
-          body: "Developers can request a valid key pair over API without creating an account. Each pair is bound to the submitted site origin.",
+          body: "The default integration works without a frontend key. If you need stricter isolation, you can still issue secrets and bind verification to one exact origin.",
         },
       ],
     },
     help: {
       eyebrow: "Developer Help",
-      title: "Register a domain, embed one script, then verify the response token on your backend.",
+      title: "Embed one script, then verify the response token on your backend with an origin or secret.",
       subtitle:
-        "AstraCaph supports open self-service key issuance. Register a domain or origin, receive a bound key pair, then use the public key in the widget and the private key in verification requests.",
+        "AstraCaph supports an open mode without mandatory frontend keys. You can embed the widget immediately, then verify tokens by your site origin or by a secret key in stricter deployments.",
       flowNotes: "Flow notes",
       environment: "Recommended environment",
       steps: [
         {
-          title: "0. Create a key pair",
-          snippet: `POST https://caph.astracat.ru/api/v1/sites
-Content-Type: application/json
+          title: "0. Pick your site origin",
+          snippet: `Example: https://example.com
 
-{
-  "domain": "example.com",
-  "name": "Example store"
-}`,
+Your backend will send this origin to AstraCaph
+as the expected binding for the token.`,
         },
         {
           title: "1. Embed the widget",
           snippet: `<script src="https://caph.astracat.ru/api/v1/widget.js" async defer></script>
-<div id="astracaph-container" data-sitekey="public_key"></div>`,
+<div id="astracaph-container"></div>`,
         },
         {
           title: "2. Read the hidden response token",
@@ -421,12 +427,22 @@ Content-Type: application/json
 Content-Type: application/json
 
 {
-  "secret": "private_key",
-  "token": "user_generated_token"
+  "token": "user_generated_token",
+  "origin": "https://example.com"
 }`,
         },
         {
-          title: "4. Delete a bound domain",
+          title: "4. Optionally create a secret-bound profile",
+          snippet: `POST https://caph.astracat.ru/api/v1/sites
+Content-Type: application/json
+
+{
+  "domain": "example.com",
+  "name": "Example store"
+}`,
+        },
+        {
+          title: "5. Delete a bound domain",
           snippet: `DELETE https://caph.astracat.ru/api/v1/sites
 Content-Type: application/json
 
@@ -437,14 +453,16 @@ Content-Type: application/json
         },
       ],
       apiNotes: [
-        "POST /api/v1/sites creates a free site registration and returns a fresh siteKey plus secret bound to the submitted origin.",
+        "AstraCaph's default mode does not require a frontend site key: embedding `/api/v1/widget.js` with `#astracaph-container` is enough.",
+        "POST /api/v1/verify can validate a token against `origin` or `domain`, which keeps Vercel deployments working even without a persistent site database.",
+        "POST /api/v1/sites creates a free site registration and returns a fresh siteKey plus secret when you need a dedicated isolated profile.",
         "DELETE /api/v1/sites removes a registered domain only when the matching sk_live server secret is provided.",
         "Challenge logic also queries multiple free IP databases to estimate whether the IP looks like hosting, proxy, VPN, Tor, mobile carrier, or residential ISP.",
         "POST /api/v1/challenge accepts telemetry, computes a risk score and either returns a token or asks for a visual follow-up step.",
-        "POST /api/v1/verify validates the signed token, checks site ownership via the secret key and consumes the token once.",
-        "POST /public/api/v1/verify supports the same verification flow and also accepts the `secretKey` field for server-to-server integrations.",
+        "POST /api/v1/verify validates the signed token, checks origin binding or a secret key, and consumes the token once.",
+        "POST /public/api/v1/verify supports the same verification flow and also accepts `origin`, `domain`, and `secretKey` for server-to-server integrations.",
         "GET /api/v1/widget.js serves a framework-free loader designed to initialize inside any page with a matching container.",
-        "GET /captcha/widget serves an iframe-ready widget page with `siteKey` and `theme=dark|light` query parameters.",
+        "GET /captcha/widget serves an iframe-ready widget page with `theme=dark|light`, while `siteKey` remains optional for compatibility.",
         "The `/sandbox` page lets you test custom HTML, widget behavior, and challenge / verify logs in one live debugging surface.",
       ],
     },
@@ -517,19 +535,19 @@ Content-Type: application/json
       editorLabel: "Sandbox HTML",
       editorTitle: "Edit markup and test the widget live",
       editorBody:
-        "The preview auto-loads `/api/v1/widget.js` and expects a container with `id=\"astracaph-container\"` and `data-sitekey=\"public_demo_key\"`.",
+        "The preview auto-loads `/api/v1/widget.js` and expects a container with `id=\"astracaph-container\"`. `data-sitekey` is optional.",
       editorHint:
         "You can change the form, styles, and container layout. The widget and hidden response token will keep working inside the frame.",
       previewLabel: "Live Preview",
       previewTitle: "Interact with the captcha inside an isolated frame",
       previewBody:
-        "Widget events flow back to this page, making it easy to inspect the latest token and manually run verify with the built-in demo secret.",
+        "Widget events flow back to this page, making it easy to inspect the latest token and manually run verify against the current origin.",
       previewHint:
         "Sandbox preview. Edit the HTML on the left, interact with the widget here, then inspect server logs on the right.",
       logsLabel: "Request Logs",
       logsTitle: "Watch challenge and verify traffic in real time",
       logsBody:
-        "This panel polls `/api/v1/logs` and filters entries for the demo site key so you can inspect statuses, summaries, and scoring responses.",
+        "This panel polls `/api/v1/logs` and filters entries for AstraCaph's open profile so you can inspect statuses, summaries, and scoring responses.",
       latestToken: "Latest token:",
       noToken: "No token captured yet",
       previewEvents: "Preview events:",
@@ -539,7 +557,7 @@ Content-Type: application/json
       verifyEmpty: "No token yet. Complete the widget flow inside the preview first.",
       verifyFailed: "Verify request failed",
       verifyPlaceholder: "Verify response will appear here",
-      demoPair: "Uses the built-in demo pair: `public_demo_key` / `private_demo_secret`",
+      demoPair: "Uses AstraCaph's open profile and origin-bound verify with no mandatory demo secret.",
       noLogs: "No logs yet. Trigger the widget inside the preview first.",
       missingContainer: "Sandbox HTML does not include #astracaph-container",
       verifiedCaptured: "astracaph:verified event captured",
